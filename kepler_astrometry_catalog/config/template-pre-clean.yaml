@@ -1,0 +1,76 @@
+description: # 
+    name: pre-clean
+    description: get catalog and centroids.
+
+env:
+  variables:
+    #Global options.
+    OUTPUT_PATH: ../data/maestro/   # Path to save data.
+    OVERWRITE: 'True'               # Overwriting or using existing catalog.
+    RANDOM_SEED: 0                  # TA-Q: What is this for?
+    
+    # Star cat options
+    REWRITE_CAT: 'True'                   # Overwriting or using existing catalog.
+    SAMPLEID: 'brightestnonsat100_rot'    # Type of catalog to get. `_rot` for rotation, `_mo` for modulation.
+    NMAX: 100                             # Number of stars to get. Should match the number in SAMPLEID.
+    TARGET_M: "10"                        # Target modules (chip number) to take stars from.
+    TARGET_O: "2"                         # Target outputs (chips's quadrant number) to take stars from.
+    GET_LC: 'True'                        # Get lightcurve shell file & run to download full LCs for your catalog.
+    USE_PQ: 'True'                        # Use pqual to filter low quality stars (pqual => 6).
+
+    # Centroid Options
+    GET_CENTROIDS: 'False'                 # Get centroids flag to read lightcurves and get centroids and write to file.raw positions,global positions(ra,dec),correction,special stars
+    QUARTER: 12                           # Quarter (0-17) to get centroids from.
+    LOCAL_ONLY: 'False'                   # To get raw centroids (without correcting for flipped chip coordinate frames).
+    GET_POSCORR: 'False'                   # Get position correction as calculated by the Kepler pipeline (with the motion polynomials).
+    GET_PSF: "True"                       # Get point spread function (PSF) centroids for ppa (photometer performance assessment) stars.
+
+
+############################################
+study:
+    - name: preamble
+      description: Activate env. (source bash_profile for HPC).
+      run:
+        cmd: |
+            source ~/.bashrc
+    - name: get_cat
+      description: Get catalog. Downloads catalog and lightcurves and processes them. See `get_stars_catalog.py` for more info.
+      run:
+        cmd: |
+            if [[ "$(REWRITE_CAT)" == "True" ]]; then
+              python $(SPECROOT)/../drivers/get_cat.py \
+              --sampleid="$(SAMPLEID)" \
+              --save-cat="$(REWRITE_CAT)" \
+              --nmax=$(NMAX) \
+              --target-m="$(TARGET_M)" \
+              --target-o="$(TARGET_O)" \
+              --get_lightcurves_shell="$(GET_LC)" \
+              --use_pqual="$(USE_PQ)" \
+              --lc_quarter=$(QUARTER)
+            else
+              echo "Using existing catalog for $(SAMPLEID)."
+            fi
+        walltime: '00:30:00'
+        procs: 1
+        depends: [preamble]
+
+    - name: get_centroids
+      description: Get centroids.
+      run:
+        cmd: |
+            if [[ "$(GET_CENTROIDS)" == "True" ]]; then
+              python $(SPECROOT)/../drivers/get_raw_centroids.py \
+                --quarter=$(QUARTER) \
+                --sampleid="$(SAMPLEID)" \
+                --reload="$(GET_CENTROIDS)" \
+                --local_only="$(LOCAL_ONLY)" \
+                --get_poscorr="$(GET_POSCORR)" \
+                --get_psf="$(GET_PSF)"
+
+            else
+              echo "Will not get new centroids."
+            fi
+        walltime: '24:00:00'
+        procs: 1
+        depends: [preamble, get_cat]
+            

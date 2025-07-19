@@ -1,0 +1,11 @@
+notes*
+.ipynb_checkpoints
+*__pycache__*
+old*
+lib/*
+*egg-info*
+*/.DS_Store
+public*
+*Icon*
+doc/*
+build/*

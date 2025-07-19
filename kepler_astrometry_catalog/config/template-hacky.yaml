@@ -1,0 +1,67 @@
+description: # 
+    name: hacky
+    description: test for clean to thekla pipeline.
+
+env:
+  variables:
+    #Global options.
+    OUTPUT_PATH: ../data/maestro/
+    OVERWRITE: 'True'
+    RANDOM_SEED: 0
+    
+    # Star cat options
+    SAMPLEID: 'brightestnonsat100_rot'
+    QUARTER: 12
+    VERBOSE: 'True'
+    DVACORR: 'True'
+    PCA: 'False'
+    READ_FITS: 'False'
+    WRITE_CLEAN_DATA: 'True'
+
+    # Fake signal options
+    FAKE_SIGNAL: 'False'
+    FREQ: ' ' ## Defaults to 1.e-6 Hz if blank
+    MC: ' ' ## Defaults to 1.e9 if blank
+    DL: ' ' ## Defaults to 20 Mpc if blank
+    SOURCE_L: ' ' ## Defaults to 76.3 if blank
+    SOURCE_B: ' ' ## Defaults to 13.5 if blank
+
+    # Thekla options
+    THEKLA-DIR: '../../thekla/data/'
+
+study:
+    - name: preamble
+      description: Activate env.
+      run:
+        cmd: |
+            source ~/.bash_profile
+            conda activate kac
+
+    - name: make_clean
+      description: Clean the centroids. If fake signal, add it.
+      run:
+        cmd: |
+            echo "Cleaning your data."
+            echo "You set fake signal to $(FAKE_SIGNAL)."
+            if [[ $FAKE_SIGNAL == 'True' ]]; then
+              python $(SPECROOT)/../drivers/make_clean.py $(SAMPLEID) --fake_signal --fitsfn $(WORKSPACE)/$(SAMPLEID)_fake.fits
+            else
+              python $(SPECROOT)/../drivers/make_clean.py $(SAMPLEID) --fitsfn $(WORKSPACE)/$(SAMPLEID).fits  --read-fits=$(READ_FITS) --write-cleaned-data=$(WRITE_CLEAN_DATA)
+            fi
+        walltime: '00:30:00'
+        procs: 1
+        depends: [preamble]
+    - name: create_hdf5
+      description: Create hdf5 file for thekla.
+      run:
+        cmd: |
+            echo "Creating the hdf5 file."
+            echo "You set fake signal to $(FAKE_SIGNAL)."
+            if [[ $FAKE_SIGNAL == 'True' ]]; then
+              python $(SPECROOT)/../drivers/create_thekla_input.py $(SAMPLEID) --fitsfn $(WORKSPACE)/$(SAMPLEID).fits --hdf5_path $(WORKSPACE)/$(SAMPLEID).hdf5 --fake_signal 
+            else
+              python $(SPECROOT)/../drivers/create_thekla_input.py $(SAMPLEID)
+            fi
+        walltime: '00:30:00'
+        procs: 1
+        depends: [preamble, make_clean]

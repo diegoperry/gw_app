@@ -1,0 +1,14 @@
+data*
+paper*
+results*
+*.ipynb
+*.DS_Store*
+*.egg-info
+*/__pycache__/*
+drivers/test*
+drivers/.DS_Store
+slurm/*
+config/*
+build/*
+!config/template*
+eleanor/*

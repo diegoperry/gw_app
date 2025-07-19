@@ -1,0 +1,19 @@
+name: estoiles
+channels:
+- defaults
+- conda-forge
+dependencies:
+- python=3.10
+- emcee=3.1.3
+- wget=1.20.3
+- seaborn=0.12.0
+- nbstripout=0.6.1
+- ffmpeg=5.0.1
+- astroquery=0.4.6
+- ipykernel=6.16.0
+- pip=22.1.2
+- corner=2.2.1
+- python-wget=3.2
+- healpy=1.16.1
+- matplotlib=3.6.0
+

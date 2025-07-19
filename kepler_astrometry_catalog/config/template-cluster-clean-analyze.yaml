@@ -1,0 +1,113 @@
+description: # 
+    name: cluster-clean-analyze
+    description: try different cleaning types and then analyze output on the cluster.
+
+# global.parameters:
+#   NSTARS:
+#     values: [10, 10, 100, 100, 200, 200, 300, 300, 400, 400, 500, 500, 600, 600, 700, 700, 800, 800, 900, 900, 1000, 1000]
+#     label: NSTARS.%%
+#   PCA:
+#     values: ['False', 'True', 'False', 'True', 'False', 'True', 'False', 'True', 'False', 'True', 'False', 'True', 'False', 'True','False', 'True','False', 'True','False', 'True','False', 'True']
+#     label: PCA.%%
+  # PCA_N_COMPS:
+  #   values: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  #   label: PCANCOMP.%%
+
+env:
+  variables:
+    #Global options.
+    OUTPUT_PATH: /project/kmpardo_1034/kepler_astrometry_catalog/data/maestro/
+    OVERWRITE: 'True'
+    RANDOM_SEED: 0
+    
+    # Star cat options
+    SAMPLEID: 'brightestnonsat10000_rot'
+    QUARTER: 12
+
+    # Clean options
+    VERBOSE: 'True'
+    DVACORR: 'True'
+    POSCORR: 'False'
+    PCA: 'True'
+    PCA_N_COMPS: 10
+    READ_FITS: 'False'
+    WRITE_CLEAN_DATA: 'True'
+    NSTARS: -1
+
+    # Plot centroids options
+    PLOT_CENTROID_N: 10 ## number of stars to plot
+    # EXTNAME: "FAKE_MOM_RADEC_MODULE_OUTPUT" ## fits ext to read from
+    EXTNAME: "FAKE_GLOB_MOM_DVA_RESIDUAL"
+
+############################################
+batch:
+    type: slurm
+    bank: kmpardo_1034
+    host: # Ignored by SLURM.
+    # Can't be overriden in individual steps?
+    queue: main
+    # Needed for procs to show up in SLURM batch header; we override this per-step.
+    procs: 1
+
+############################################
+study:
+    - name: preamble
+      description: Activate env.
+      run:
+        cmd: |
+            source ~/.bash_profile
+            conda activate kac     
+    
+    - name: make_clean
+      description: Clean the centroids.
+      run:
+        cmd: |
+            #SBATCH --mem-per-cpu=16G
+
+            $(LAUNCHER) --exclusive \
+            python $(SPECROOT)/../drivers/make_clean.py $(SAMPLEID) \
+              --fitsfn $(WORKSPACE)/$(SAMPLEID).fits \
+              --read-fits=$(READ_FITS) \
+              --write-cleaned-data=$(WRITE_CLEAN_DATA) \
+              --dvacorr=$(DVACORR) \
+              --use-poscorr=$(POSCORR) \
+              --pca=$(PCA) \
+              --pca-n-comps=$(PCA_N_COMPS) \
+              --max-nstars=$(NSTARS) \
+              --verbose=$(VERBOSE) \
+        walltime: '10:00:00'
+        procs: 1
+        depends: [preamble]
+    
+    - name: plot_centroids
+      description: Plot all centroids as a function of time.
+      run:
+        cmd: |
+            #SBATCH --mem-per-cpu=16G
+
+            $(LAUNCHER) --exclusive \
+            python $(SPECROOT)/../drivers/plot_centroid_timex.py \
+              "$(WORKSPACE)/$(SAMPLEID)_$(EXTNAME)_centroids.pdf" \
+              "$(make_clean.workspace)/$(SAMPLEID).fits" \
+              --n_samples="$(PLOT_CENTROID_N)" \
+              --extname="$(EXTNAME)"
+        walltime: '00:30:00'
+        procs: 1
+        depends: [preamble, make_clean]
+
+    - name: lomb_scargle
+      description: Run lomb scargle analysis + plots.
+      run:
+        cmd: |
+            #SBATCH --mem-per-cpu=16G
+
+            $(LAUNCHER) --exclusive \
+            python $(SPECROOT)/../drivers/lomb_scargle_diagnostics.py \
+              "$(SAMPLEID)" \
+              "$(WORKSPACE)/" \
+              "$(make_clean.workspace)/$(SAMPLEID).fits" \
+              --n_stars="$(NSTARS)" \
+              --extname="$(EXTNAME)"
+        walltime: '01:00:00'
+        procs: 1
+        depends: [preamble, make_clean]

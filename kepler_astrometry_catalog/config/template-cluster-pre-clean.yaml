@@ -1,0 +1,84 @@
+description: # 
+    name: cluster-pre-clean
+    description: get catalog and centroids on the cluster.
+
+env:
+  variables:
+    #Global options.
+    OUTPUT_PATH: /project/kmpardo_1034/kepler_astrometry_catalog/data/maestro/
+    OVERWRITE: 'True'
+    RANDOM_SEED: 0
+    
+    # Star cat options
+    REWRITE_CAT: 'True'
+    SAMPLEID: 'brightestnonsat10000_rot'
+    NMAX: 10000
+
+    # Centroid Options
+    GET_CENTROIDS: 'True'
+    QUARTER: 12
+    LOCAL_ONLY: 'False'
+    GET_POSCORR: 'True'
+    GET_PSF: 'True'
+############################################
+batch:
+    type: slurm
+    bank: kmpardo_1034
+    host: # Ignored by SLURM.
+    # Can't be overriden in individual steps?
+    queue: main
+    # Needed for procs to show up in SLURM batch header; we override this per-step.
+    procs: 1
+
+
+############################################
+study:
+    - name: preamble
+      description: Activate env.
+      run:
+        cmd: |
+            source ~/.bash_profile
+            conda activate kac
+            export XLA_PYTHON_CLIENT_MEM_FRACTION=1
+    - name: get_cat
+      description: Get catalog.
+      run:
+        cmd: |
+            if [[ "$(REWRITE_CAT)" == "True" ]]; then
+              python $(SPECROOT)/../drivers/get_cat.py \
+              --sampleid="$(SAMPLEID)" \
+              --save-cat="$(REWRITE_CAT)" \
+              --nmax=$(NMAX)
+            else
+              echo "Using existing catalog for $(SAMPLEID)."
+            fi
+        walltime: '00:30:00'
+        procs: 1
+        depends: [preamble]
+
+    - name: get_centroids
+      description: Get centroids.
+      run:
+        cmd: |
+            #SBATCH --mem-per-cpu=16G
+            #SBATCH --array=0-499
+
+            $(LAUNCHER) --exclusive \
+            python $(SPECROOT)/../drivers/get_raw_centroids.py \
+              --quarter=$(QUARTER) \
+              --sampleid="$(SAMPLEID)" \
+              --reload="$(GET_CENTROIDS)" \
+              --local_only="$(LOCAL_ONLY)" \
+              --get_poscorr="$(GET_POSCORR)" \
+              --get_psf="$(GET_PSF)" \
+              --batch_process="True" \
+        walltime: '47:59:59'
+        procs: 1
+        depends: [preamble, get_cat]
+    - name: all_done
+      description: Print all done to fix issue with maestro status not finishing?
+      run:
+        cmd: |
+            echo "All done"
+        procs: 1
+        depends: [get_centroids]
